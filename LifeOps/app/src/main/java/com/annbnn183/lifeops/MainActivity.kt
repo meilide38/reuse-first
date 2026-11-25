@@ -36,6 +36,8 @@ private fun loadDone(c:Context):Set<String> { val j=JSONArray(prefs(c).getString
 private fun saveDone(c:Context,s:Set<String>){val j=JSONArray();s.forEach{j.put(it)};prefs(c).edit().putString("done_"+dayKey(),j.toString()).apply()}
 private fun loadRules(c:Context):List<RuleItem>{val raw=prefs(c).getString("rules","");if(raw.isNullOrBlank()) return listOf(RuleItem("r1","先行动，再优化","研究不能无限延长，达到足够信息就小步验证。"),RuleItem("r2","固定复盘日修改规则","平时执行规则，修改时记录理由。"),RuleItem("r3","先寻找成熟方案","优先复用经过验证的实现。"),RuleItem("r4","冲动决定先暂停","重要决定先通过预设检查。"));return try{val j=JSONArray(raw);(0 until j.length()).map{val o=j.getJSONObject(it);RuleItem(o.getString("id"),o.getString("title"),o.getString("detail"))}}catch(_:Exception){emptyList()}}
 private fun saveRules(c:Context,r:List<RuleItem>){val j=JSONArray();r.forEach{j.put(JSONObject().put("id",it.id).put("title",it.title).put("detail",it.detail))};prefs(c).edit().putString("rules",j.toString()).apply()}
+private fun revision(c:Context,old:RuleItem,n:RuleItem,reason:String){val j=JSONArray(prefs(c).getString("rule_history","[]"));j.put(JSONObject().put("date",SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.getDefault()).format(Date())).put("old",old.title).put("new",n.title).put("reason",reason));prefs(c).edit().putString("rule_history",j.toString()).apply();addLog(c,"修改规则："+old.title+"；理由："+reason)}
+private fun revisions(c:Context):List<String>{return try{val j=JSONArray(prefs(c).getString("rule_history","[]"));(0 until j.length()).map{val o=j.getJSONObject(it);o.getString("date")+" · "+o.getString("old")+" → "+o.getString("new")+"\n理由："+o.getString("reason")}.reversed()}catch(_:Exception){emptyList()}}
 private fun addLog(c:Context,msg:String){val j=JSONArray(prefs(c).getString("log","[]"));j.put(JSONObject().put("date",dayKey()).put("text",msg));prefs(c).edit().putString("log",j.toString()).apply()}
 private fun logs(c:Context):List<LogItem>{return try{val j=JSONArray(prefs(c).getString("log","[]"));(0 until j.length()).map{LogItem(j.getJSONObject(it).getString("date"),j.getJSONObject(it).getString("text"))}.reversed()}catch(_:Exception){emptyList()}}
 private fun usagePermission(c:Context):Boolean { val appOps=c.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager;return appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,android.os.Process.myUid(),c.packageName)==AppOpsManager.MODE_ALLOWED }
@@ -48,7 +50,7 @@ private fun LifeOpsApp(context:Context) {
     var done by remember{mutableStateOf(loadDone(context))}
     var rules by remember{mutableStateOf(loadRules(context))}
     var logItems by remember{mutableStateOf(logs(context))}
-    var newAction by remember{mutableStateOf("")}
+    var newAction by remember{mutableStateOf("")}\n    var editing by remember{mutableStateOf<RuleItem?>(null)}\n    var ruleTitle by remember{mutableStateOf("")}\n    var ruleDetail by remember{mutableStateOf("")}\n    var reason by remember{mutableStateOf("")}\n    var historyOpen by remember{mutableStateOf(false)}
     var usage by remember{mutableLongStateOf(usageMinutes(context))}
     MaterialTheme { Scaffold(bottomBar={NavigationBar{NavigationBarItem(tab==0,{tab=0},icon={},label={Text("今天")});NavigationBarItem(tab==1,{tab=1},icon={},label={Text("规则")});NavigationBarItem(tab==2,{tab=2},icon={},label={Text("记录")})}}){pad->
         Box(Modifier.padding(pad).fillMaxSize()){when(tab){
@@ -61,9 +63,11 @@ private fun LifeOpsApp(context:Context) {
         }
         1->LazyColumn(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
             item{Text("规则",style=MaterialTheme.typography.headlineLarge)}
-            items(rules){r->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(r.title,style=MaterialTheme.typography.titleMedium);Text(r.detail)}}}
+            items(rules){r->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(r.title,style=MaterialTheme.typography.titleMedium);Text(r.detail);Button(onClick={editing=r;ruleTitle=r.title;ruleDetail=r.detail;reason=""}){Text("修改")}}}}
             item{Button(onClick={val r=RuleItem(System.currentTimeMillis().toString(),"新规则","请编辑此规则内容。");rules=rules+r;saveRules(context,rules);addLog(context,"创建规则：${r.title}");logItems=logs(context)}){Text("新增规则")}}
-            item{Text("规则列表已保存在本机。编辑功能将后续完善。")}
+            item{Button(onClick={historyOpen=true}){Text("修改历史")}}
+            if(historyOpen){AlertDialog(onDismissRequest={historyOpen=false},title={Text("规则历史")},text={Column{revisions(context).forEach{Text(it);Divider()};if(revisions(context).isEmpty())Text("暂无历史")}},confirmButton={TextButton(onClick={historyOpen=false}){Text("关闭")}})}
+            if(editing!=null){AlertDialog(onDismissRequest={editing=null},title={Text("编辑规则")},text={Column{OutlinedTextField(ruleTitle,{ruleTitle=it},label={Text("标题")});OutlinedTextField(ruleDetail,{ruleDetail=it},label={Text("内容")});OutlinedTextField(reason,{reason=it},label={Text("修改理由")})}},confirmButton={TextButton(onClick={if(ruleTitle.isNotBlank()&&ruleDetail.isNotBlank()&&reason.isNotBlank()){val o=editing!!;val n=o.copy(title=ruleTitle.trim(),detail=ruleDetail.trim());rules=rules.map{if(it.id==o.id)n else it};saveRules(context,rules);revision(context,o,n,reason.trim());logItems=logs(context);editing=null}}){Text("保存")}},dismissButton={TextButton(onClick={editing=null}){Text("取消")}})}
         }
         else->LazyColumn(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
             item{Text("执行记录",style=MaterialTheme.typography.headlineLarge);Text("自动记录行动新增、完成/取消及规则创建。")}
