@@ -15,6 +15,6 @@ LifeOps is designed around a simple loop: **rules → action → evidence → re
 1. Today: a small action list.
 2. Rules: precommitment and decision guardrails.
 3. Review: weekly execution review.
-4. Later: persistence, rule versioning, reminders, backup/restore, analytics.
+4. Implemented: local persistence for actions, daily completion state, rules and activity log.\n5. UsageStats-based screen usage totals require user-granted Usage Access.\n6. Later: rule editing/versioning, reminders, backup/restore and analytics.
 
-This is an early scaffold, not a finished app.
+This remains an early build: local persistence and a basic activity log are implemented; further validation and features are still needed.
