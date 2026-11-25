@@ -17,7 +17,8 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Build debug APK
         run: gradle assembleDebug
+        working-directory: LifeOps
       - uses: actions/upload-artifact@v4
         with:
           name: LifeOps-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: LifeOps/app/build/outputs/apk/debug/*.apk
