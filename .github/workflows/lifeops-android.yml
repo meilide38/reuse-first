@@ -2,7 +2,7 @@ name: LifeOps Android CI
 on:
   push:
     branches: [ main ]
-    paths: [ 'LifeOps/**' ]
+    paths: [ 'LifeOps/**', '.github/workflows/lifeops-android.yml' ]
   pull_request:
     branches: [ main ]
     paths: [ 'LifeOps/**' ]
